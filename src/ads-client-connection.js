@@ -6,7 +6,7 @@ module.exports = function (RED) {
     RED.nodes.createNode(this, config)
 
     this.adsClient = null
-    this.connecting = false
+    this.connecting = null
 
     //Properties
     this.name = config.name
@@ -73,30 +73,18 @@ module.exports = function (RED) {
 
 
 
+    const _Connect = async(silence) => {
 
-    
-    /**
-     * Connects to the target
-     * @returns 
-     */
-    this.connect = async (silence) => {
-
-      if (this.connecting) {
-        throw new Error('Already connecting to the target')
-      }
-
-      this.connecting = true
       if (!silence){
-         this.log(`Connecting to ${this.connectionSettings.targetAmsNetId}:${this.connectionSettings.targetAdsPort}...`)
+          this.log(`Connecting to ${this.connectionSettings.targetAmsNetId}:${this.connectionSettings.targetAdsPort}...`)
       }
-
 
       try {
         this.adsClient = new ads.Client(this.connectionSettings)
         const res = await this.adsClient.connect()
         
         if(!silence){
-           this.log(`Connected to ${this.connectionSettings.targetAmsNetId}:${this.connectionSettings.targetAdsPort}!`)
+            this.log(`Connected to ${this.connectionSettings.targetAmsNetId}:${this.connectionSettings.targetAdsPort}!`)
         }
         return res
 
@@ -107,8 +95,32 @@ module.exports = function (RED) {
         //Throwing the error so caller knows that no success..
         throw err
 
+      } 
+
+    }
+    
+    /**
+     * Connects to the target
+     * @returns 
+     */
+    this.connect = async (silence) => {
+
+      //If no one is trying to connect => make new connect call, else reuse connect call
+      let firstConnect = false;
+      if (!this.connecting) {
+        this.connecting = _Connect(silence);
+        firstConnect = true;
+      }
+
+      try{
+        const res = await this.connecting;
+        return res;
+      }catch(err){
+        throw err;
       } finally {
-        this.connecting = false
+        if (firstConnect){
+          this.connecting = null;
+        }
       }
     }
 
@@ -133,7 +145,7 @@ module.exports = function (RED) {
      * Returns true if connected, otherwise false
      * @returns 
      */
-    this.isConnecting = () => this.connecting
+    this.isConnecting = () => this.connecting === null ? false : true
 
     
 
